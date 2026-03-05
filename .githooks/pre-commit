@@ -1,0 +1,24 @@
+#!/usr/bin/env sh
+set -e
+
+staged=$(git diff --cached --name-only --diff-filter=ACM | grep '\.jl$' || true)
+[ -z "$staged" ] && exit 0
+
+echo "Running Runic formatter on staged .jl files..."
+julia --project=. -e "
+using Runic
+files = split(\"\"\"$staged\"\"\", '\n'; keepempty = false)
+any_changed = false
+for f in files
+    isfile(f) || continue
+    result = Runic.format_file(f; inplace = true)
+    if result === Runic.CHANGED
+        println(\"  formatted: \$f\")
+        any_changed = true
+    end
+end
+if any_changed
+    println(\"\nSome files were reformatted. Re-stage them and commit again.\")
+    exit(1)
+end
+"

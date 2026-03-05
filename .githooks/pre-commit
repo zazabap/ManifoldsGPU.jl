@@ -20,7 +20,7 @@ for f in files
     if formatted != original
         write(f, formatted)
         println("  formatted: ", f)
-        any_changed = true
+        global any_changed = true
     end
 end
 if any_changed

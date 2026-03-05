@@ -161,3 +161,18 @@ end
     @test is_point(MP, Array(Y_jl))
     @test isapprox(MP, p, Array(Y_jl), Y_cpu; atol = 2.0f-5, rtol = 2.0f-5)
 end
+
+@testset "JLArray: Euclidean exp Float64" begin
+    MP = PowerManifold(Euclidean(4), 32)
+
+    Random.seed!(70)
+    p = rand(MP)
+    X = rand(MP; vector_at = p)
+    Y_cpu = exp(MP, p, X)
+
+    p_jl = JLArray(p)
+    X_jl = JLArray(X)
+    Y_jl = exp(MP, p_jl, X_jl)
+
+    @test isapprox(Array(Y_jl), Y_cpu; atol = 2.0e-14, rtol = 2.0e-14)
+end

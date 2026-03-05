@@ -8,6 +8,7 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 ManifoldDiff = "af67fdf4-a580-4b9f-bbec-742ef357defd"
 Manifolds = "1cead3c2-87b3-11e9-0ccd-23c62b72b94e"
 ManifoldsBase = "3362f125-f0bb-47a3-aa74-596ffd7ef2fb"
+Runic = "62bfec6d-59d7-401d-8490-b29ee721c001"
 
 [weakdeps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
@@ -22,6 +23,7 @@ JLArrays = "0.3"
 ManifoldDiff = "0.4.5"
 Manifolds = "0.11.12"
 ManifoldsBase = "2.3.1"
+Runic = "1.5.1"
 julia = "1.10.10"
 
 [extras]

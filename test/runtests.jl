@@ -1,16 +1,24 @@
 using ManifoldsGPU
-using Test
-using Random
+using Manifolds, ManifoldsBase
+using Random, Test
 
-using ManifoldsBase, Manifolds
+# JLArray tests: always run (no hardware required).
+# Files matching test_jlarray_*.jl are auto-discovered in test/jlarray/.
+for f in sort(readdir(joinpath(@__DIR__, "jlarray"); join = true))
+    if startswith(basename(f), "test_jlarray_")
+        include(f)
+    end
+end
 
-# JLArray tests: always run (no hardware required)
-include("jlarray_tests.jl")
-
-# CUDA tests: only run when CUDA is available
+# CUDA tests: only run when CUDA hardware is available.
+# Files matching test_cuda_*.jl are auto-discovered in test/cuda/.
 using CUDA
 if CUDA.functional()
-    include("cuda_tests.jl")
+    for f in sort(readdir(joinpath(@__DIR__, "cuda"); join = true))
+        if startswith(basename(f), "test_cuda_")
+            include(f)
+        end
+    end
 else
-    @info "CUDA not available, skipping CUDA-specific tests"
+    @info "CUDA not available, skipping CUDA tests"
 end

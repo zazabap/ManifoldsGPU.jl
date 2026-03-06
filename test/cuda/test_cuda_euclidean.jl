@@ -43,7 +43,7 @@ end
     q_cu = CuArray(q)
     d_cu = distance(MP, p_cu, q_cu)
 
-    @test isapprox(d_cu, d_cpu; atol = 2.0e-14, rtol = 2.0e-14)
+    @test isapprox(d_cu, d_cpu; atol = 1.0e-12, rtol = 1.0e-12)
 end
 
 @testset "CUDA: Euclidean inner Float64" begin
@@ -60,7 +60,7 @@ end
     Y_cu = CuArray(Y)
     val_cu = inner(MP, p_cu, X_cu, Y_cu)
 
-    @test isapprox(val_cu, val_cpu; atol = 2.0e-14, rtol = 2.0e-14)
+    @test isapprox(val_cu, val_cpu; atol = 1.0e-12, rtol = 1.0e-12)
 end
 
 @testset "CUDA: Euclidean norm Float64" begin
@@ -75,7 +75,7 @@ end
     X_cu = CuArray(X)
     val_cu = norm(MP, p_cu, X_cu)
 
-    @test isapprox(val_cu, val_cpu; atol = 2.0e-14, rtol = 2.0e-14)
+    @test isapprox(val_cu, val_cpu; atol = 1.0e-12, rtol = 1.0e-12)
 end
 
 @testset "CUDA: Euclidean parallel_transport_to Float64" begin

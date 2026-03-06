@@ -91,3 +91,83 @@ function ManifoldsBase.parallel_transport_to!(
     Y .= X
     return Y
 end
+
+"""
+    project!(M::PowerManifold{ℝ, <:Euclidean, ...}, q, p)
+
+GPU-native point projection on batched Euclidean space.
+Strategy: identity (q .= p), avoids PowerManifold per-element loop.
+"""
+function ManifoldsBase.project!(
+        ::PowerManifold{ℝ, <:Euclidean, <:Tuple, ArrayPowerRepresentation},
+        q::CuArray{T, N},
+        p::CuArray{T, N},
+    ) where {T <: Real, N}
+    q .= p
+    return q
+end
+
+"""
+    project!(M::PowerManifold{ℝ, <:Euclidean, ...}, Y, p, X)
+
+GPU-native tangent vector projection on batched Euclidean space.
+Strategy: identity (Y .= X), avoids PowerManifold per-element loop.
+"""
+function ManifoldsBase.project!(
+        ::PowerManifold{ℝ, <:Euclidean, <:Tuple, ArrayPowerRepresentation},
+        Y::CuArray{T, N},
+        ::CuArray{T, N},
+        X::CuArray{T, N},
+    ) where {T <: Real, N}
+    Y .= X
+    return Y
+end
+
+"""
+    zero_vector!(M::PowerManifold{ℝ, <:Euclidean, ...}, X, p)
+
+GPU-native zero tangent vector on batched Euclidean space.
+Strategy: fill with zeros, avoids PowerManifold per-element loop.
+"""
+function ManifoldsBase.zero_vector!(
+        ::PowerManifold{ℝ, <:Euclidean, <:Tuple, ArrayPowerRepresentation},
+        X::CuArray{T, N},
+        ::CuArray{T, N},
+    ) where {T <: Real, N}
+    X .= zero(T)
+    return X
+end
+
+"""
+    mid_point!(M::PowerManifold{ℝ, <:Euclidean, ...}, q, p1, p2)
+
+GPU-native geodesic midpoint on batched Euclidean space.
+Strategy: q = (p1 + p2) / 2, avoids PowerManifold per-element loop.
+"""
+function ManifoldsBase.mid_point!(
+        ::PowerManifold{ℝ, <:Euclidean, <:Tuple, ArrayPowerRepresentation},
+        q::CuArray{T, N},
+        p1::CuArray{T, N},
+        p2::CuArray{T, N},
+    ) where {T <: Real, N}
+    q .= (p1 .+ p2) ./ 2
+    return q
+end
+
+"""
+    vector_transport_to!(M::PowerManifold{ℝ, <:Euclidean, ...}, Y, p, X, q, ...)
+
+GPU-native vector transport on batched Euclidean space.
+Strategy: identity (Y .= X), avoids PowerManifold per-element loop.
+"""
+function ManifoldsBase.vector_transport_to!(
+        ::PowerManifold{ℝ, <:Euclidean, <:Tuple, ArrayPowerRepresentation},
+        Y::CuArray{T, N},
+        ::CuArray{T, N},
+        X::CuArray{T, N},
+        ::CuArray{T, N},
+        ::AbstractVectorTransportMethod,
+    ) where {T <: Real, N}
+    Y .= X
+    return Y
+end

@@ -104,5 +104,89 @@ using GPUArrays
         @test isapprox(Array(Z_jl), Z_cpu; atol = 2.0e-14)
     end
 
+    @testset "project!" begin
+        Random.seed!(54)
+
+        M = Euclidean(8, 4)
+        MP = PowerManifold(M, 64)
+
+        p = randn(8, 4, 64)
+        X = randn(8, 4, 64)
+
+        q_cpu = similar(p)
+        project!(MP, q_cpu, p)
+
+        p_jl = JLArray(p)
+        q_jl = similar(p_jl)
+        project!(MP, q_jl, p_jl)
+        @test isapprox(Array(q_jl), q_cpu; atol = 2.0e-14)
+
+        Y_cpu = similar(X)
+        project!(MP, Y_cpu, p, X)
+
+        X_jl = JLArray(X)
+        Y_jl = similar(X_jl)
+        project!(MP, Y_jl, p_jl, X_jl)
+        @test isapprox(Array(Y_jl), Y_cpu; atol = 2.0e-14)
+    end
+
+    @testset "zero_vector!" begin
+        Random.seed!(55)
+
+        M = Euclidean(8, 4)
+        MP = PowerManifold(M, 64)
+
+        p = randn(8, 4, 64)
+        p_jl = JLArray(p)
+
+        X_cpu = similar(p)
+        zero_vector!(MP, X_cpu, p)
+
+        X_jl = similar(p_jl)
+        zero_vector!(MP, X_jl, p_jl)
+        @test isapprox(Array(X_jl), X_cpu; atol = 2.0e-14)
+        @test all(Array(X_jl) .== 0)
+    end
+
+    @testset "mid_point!" begin
+        Random.seed!(56)
+
+        M = Euclidean(8, 4)
+        MP = PowerManifold(M, 64)
+
+        p1 = randn(8, 4, 64)
+        p2 = randn(8, 4, 64)
+
+        q_cpu = similar(p1)
+        mid_point!(MP, q_cpu, p1, p2)
+
+        p1_jl = JLArray(p1)
+        p2_jl = JLArray(p2)
+        q_jl = similar(p1_jl)
+        mid_point!(MP, q_jl, p1_jl, p2_jl)
+        @test isapprox(Array(q_jl), q_cpu; atol = 2.0e-14)
+    end
+
+    @testset "vector_transport_to!" begin
+        Random.seed!(57)
+
+        M = Euclidean(8, 4)
+        MP = PowerManifold(M, 64)
+
+        p = randn(8, 4, 64)
+        q = randn(8, 4, 64)
+        X = randn(8, 4, 64)
+
+        Y_cpu = similar(X)
+        vector_transport_to!(MP, Y_cpu, p, X, q, ParallelTransport())
+
+        p_jl = JLArray(p)
+        q_jl = JLArray(q)
+        X_jl = JLArray(X)
+        Y_jl = similar(X_jl)
+        vector_transport_to!(MP, Y_jl, p_jl, X_jl, q_jl, ParallelTransport())
+        @test isapprox(Array(Y_jl), Y_cpu; atol = 2.0e-14)
+    end
+
     GPUArrays.allowscalar(false)
 end

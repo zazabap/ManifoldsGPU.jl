@@ -213,7 +213,73 @@
         @test isapprox(q_cu_h, q_cpu; atol = 2.0e-14, rtol = 2.0e-14)
     end
 
-    # 10. retract_polar_fused fallback stress (large matrices trigger CPU fallback)
+    # 11. Rotations log! batched
+    @testset "Rotations log! batched" begin
+        Random.seed!(60)
+
+        M = Rotations(8)
+        MP = PowerManifold(M, 64)
+
+        for _ in 1:6
+            p = rand(MP)
+            q = rand(MP)
+            X_cpu = log(MP, p, q)
+
+            p_cu = CuArray(p)
+            q_cu = CuArray(q)
+            X_cu = log(MP, p_cu, q_cu)
+            X_cu_h = Array(X_cu)
+
+            @test is_vector(MP, p, X_cu_h; atol = 1.0e-10)
+            @test isapprox(X_cu_h, X_cpu; atol = 2.0e-10, rtol = 2.0e-10)
+        end
+    end
+
+    # 12. Rotations log! Float32
+    @testset "Rotations log! Float32" begin
+        Random.seed!(61)
+
+        M = Rotations(8)
+        MP = PowerManifold(M, 64)
+
+        for _ in 1:6
+            p = Float32.(rand(MP))
+            q = Float32.(rand(MP))
+            X_cpu = log(MP, p, q)
+
+            p_cu = CuArray(p)
+            q_cu = CuArray(q)
+            X_cu = log(MP, p_cu, q_cu)
+            X_cu_h = Array(X_cu)
+
+            @test is_vector(MP, p, X_cu_h; atol = 1.0f-3)
+            @test isapprox(X_cu_h, X_cpu; atol = 2.0f-3, rtol = 2.0f-3)
+        end
+    end
+
+    # 13. UnitaryMatrices log! batched
+    @testset "UnitaryMatrices log! batched" begin
+        Random.seed!(62)
+
+        M = UnitaryMatrices(8)
+        MP = PowerManifold(M, 64)
+
+        for _ in 1:6
+            p = rand(MP)
+            q = rand(MP)
+            X_cpu = log(MP, p, q)
+
+            p_cu = CuArray(p)
+            q_cu = CuArray(q)
+            X_cu = log(MP, p_cu, q_cu)
+            X_cu_h = Array(X_cu)
+
+            @test is_vector(MP, p, X_cu_h; atol = 1.0e-10)
+            @test isapprox(X_cu_h, X_cpu; atol = 2.0e-10, rtol = 2.0e-10)
+        end
+    end
+
+    # 14. retract_polar_fused fallback stress (large matrices trigger CPU fallback)
     @testset "retract_polar_fused fallback stress" begin
         Random.seed!(53)
 

@@ -146,3 +146,45 @@ function ManifoldsBase.project!(
     Y .= (A .- B) ./ 2
     return Y
 end
+
+"""
+    log!(M::PowerManifold{..., <:GeneralUnitaryMatrices}, X, p, q)
+
+GPU-accelerated logarithmic map for batched real `GeneralUnitaryMatrices`
+(including `Rotations` and `OrthogonalMatrices`).
+
+Computes `U = p' * q` via batched gemm, then `log(U)` via per-slice
+eigendecomposition (`geev!`), and projects to skew-symmetric.
+"""
+function ManifoldsBase.log!(
+        ::PowerManifold{<:Any, <:Manifolds.GeneralUnitaryMatrices, <:Tuple, ArrayPowerRepresentation},
+        X::CuArray{T, 3},
+        p::CuArray{T, 3},
+        q::CuArray{T, 3},
+    ) where {T <: Real}
+    U = CUDA.CUBLAS.gemm_strided_batched('T', 'N', p, q)
+    X .= _matrix_log_gpu(U)
+    X .= (X .- permutedims(X, (2, 1, 3))) ./ T(2)
+    return X
+end
+
+"""
+    log!(M::PowerManifold{..., <:GeneralUnitaryMatrices}, X, p, q)
+
+GPU-accelerated logarithmic map for batched complex `GeneralUnitaryMatrices`
+(including `UnitaryMatrices`).
+
+Computes `U = p' * q` via batched gemm (adjoint), then `log(U)` via per-slice
+eigendecomposition (`geev!`), and projects to skew-Hermitian.
+"""
+function ManifoldsBase.log!(
+        ::PowerManifold{<:Any, <:Manifolds.GeneralUnitaryMatrices, <:Tuple, ArrayPowerRepresentation},
+        X::CuArray{T, 3},
+        p::CuArray{T, 3},
+        q::CuArray{T, 3},
+    ) where {T <: Complex}
+    U = CUDA.CUBLAS.gemm_strided_batched('C', 'N', p, q)
+    X .= _matrix_log_gpu(U)
+    X .= (X .- conj.(permutedims(X, (2, 1, 3)))) ./ T(2)
+    return X
+end

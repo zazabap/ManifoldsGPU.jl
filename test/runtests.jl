@@ -9,6 +9,7 @@ using ManifoldsBase, Manifolds
     # JLArray tests (CI-safe, no GPU hardware required)
     @testset "JLArray" begin
         using JLArrays
+        include(joinpath(@__DIR__, "jlarray", "test_stiefel.jl"))
         include(joinpath(@__DIR__, "jlarray", "test_euclidean.jl"))
     end
 

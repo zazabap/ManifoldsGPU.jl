@@ -21,6 +21,7 @@ using GPUArrays
         p_jl = JLArray(p)
         X_jl = JLArray(X)
         Y_jl = exp(MP, p_jl, X_jl)
+        @test is_point(MP, Array(Y_jl))
         @test isapprox(Array(Y_jl), Y_cpu; atol = 2.0e-14)
 
         V_cpu = log(MP, p, Y_cpu)
@@ -43,6 +44,7 @@ using GPUArrays
         p_jl = JLArray(p)
         X_jl = JLArray(X)
         Y_jl = exp(MP, p_jl, X_jl)
+        @test is_point(MP, Array(Y_jl))
         @test isapprox(Array(Y_jl), Y_cpu; atol = 2.0f-5)
 
         V_cpu = log(MP, p, Y_cpu)

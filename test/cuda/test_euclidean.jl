@@ -13,6 +13,7 @@
         p_cu = CuArray(p)
         X_cu = CuArray(X)
         Y_cu = exp(MP, p_cu, X_cu)
+        @test is_point(MP, Array(Y_cu))
         @test isapprox(Array(Y_cu), Y_cpu; atol = 2.0e-14)
 
         V_cpu = log(MP, p, Y_cpu)
@@ -35,6 +36,7 @@
         p_cu = CuArray(p)
         X_cu = CuArray(X)
         Y_cu = exp(MP, p_cu, X_cu)
+        @test is_point(MP, Array(Y_cu))
         @test isapprox(Array(Y_cu), Y_cpu; atol = 2.0f-5)
 
         V_cpu = log(MP, p, Y_cpu)

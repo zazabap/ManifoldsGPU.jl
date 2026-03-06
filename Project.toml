@@ -17,6 +17,7 @@ ManifoldsGPUCUDAExt = "CUDA"
 
 [compat]
 CUDA = "5.9.6"
+GPUArrays = "11"
 JLArrays = "0.3"
 ManifoldDiff = "0.4.5"
 Manifolds = "0.11.12"

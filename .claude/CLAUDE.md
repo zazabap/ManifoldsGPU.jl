@@ -88,7 +88,7 @@ step = ArmijoLinesearch(M)
 |-----------------------|------------------------|---------------------------------------|
 | Stiefel               | `exp!`, `retract!`     | `gemm_strided_batched`, `gesvdj!`     |
 | Grassmann             | `exp!`, `retract!`     | `gemm_strided_batched`, `gesvdj!`     |
-| GeneralUnitaryMatrices| `exp!`, `retract!`, `project!` | `gemm_strided_batched`, `gesvdj!` + Taylor series|
+| GeneralUnitaryMatrices| `exp!`, `log!`, `retract!`, `project!` | `gemm_strided_batched`, `gesvdj!`, `geev!` + Taylor series|
 | SymmetricPositiveDefinite | `exp!`             | CPU eigendecomp per slice (serial)    |
 
 ### Manifolds That Do NOT Need PowerManifold Overrides

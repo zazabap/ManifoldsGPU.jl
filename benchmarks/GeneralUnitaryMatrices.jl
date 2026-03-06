@@ -68,11 +68,13 @@ function _setup_rotations_data(; n::Int, batch::Int, scale::Float32, seed::Int)
 
     p_cpu = Float32.(rand(MP))
     X_cpu = scale .* Float32.(rand(MP; vector_at = p_cpu))
+    q_cpu = Float32.(rand(MP))
 
     p_gpu = CuArray(p_cpu)
     X_gpu = CuArray(X_cpu)
+    q_gpu = CuArray(q_cpu)
 
-    return (; MP, p_cpu, X_cpu, p_gpu, X_gpu)
+    return (; MP, p_cpu, X_cpu, q_cpu, p_gpu, X_gpu, q_gpu)
 end
 
 function _setup_unitary_data(; n::Int, batch::Int, scale::Float32, seed::Int)
@@ -83,11 +85,13 @@ function _setup_unitary_data(; n::Int, batch::Int, scale::Float32, seed::Int)
 
     p_cpu = ComplexF32.(rand(MP))
     X_cpu = scale .* ComplexF32.(rand(MP; vector_at = p_cpu))
+    q_cpu = ComplexF32.(rand(MP))
 
     p_gpu = CuArray(p_cpu)
     X_gpu = CuArray(X_cpu)
+    q_gpu = CuArray(q_cpu)
 
-    return (; MP, p_cpu, X_cpu, p_gpu, X_gpu)
+    return (; MP, p_cpu, X_cpu, q_cpu, p_gpu, X_gpu, q_gpu)
 end
 
 function benchmark_rotations(;
@@ -102,8 +106,10 @@ function benchmark_rotations(;
     MP = data.MP
     p_cpu = data.p_cpu
     X_cpu = data.X_cpu
+    q_cpu = data.q_cpu
     p_gpu = data.p_gpu
     X_gpu = data.X_gpu
+    q_gpu = data.q_gpu
 
     manifold_label = "PowerManifold(Rotations($n), $batch)"
 
@@ -128,6 +134,31 @@ function benchmark_rotations(;
         gpu_ms = gpu_ms,
         relerr = relerr,
         relerr_label = "||Ycpu - Ygpu||/||Ycpu||",
+    )
+
+    println()
+
+    # log!
+    cpu_ms, cpu_all, gpu_ms, gpu_all = _benchmark_cpu_gpu(
+        () -> log(MP, p_cpu, q_cpu),
+        () -> CUDA.@sync log(MP, p_gpu, q_gpu);
+        samples = samples,
+    )
+    relerr = begin
+        X_log_cpu = log(MP, p_cpu, q_cpu)
+        X_log_gpu = Array(CUDA.@sync log(MP, p_gpu, q_gpu))
+        norm(X_log_cpu .- X_log_gpu) / max(norm(X_log_cpu), eps(Float32))
+    end
+    _print_results(;
+        name = "LogarithmicMap",
+        manifold_label = manifold_label,
+        samples = samples,
+        cpu_all = cpu_all,
+        gpu_all = gpu_all,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+        relerr_label = "||Xcpu - Xgpu||/||Xcpu||",
     )
 
     println()
@@ -175,11 +206,14 @@ function benchmark_unitary(;
     MP = data.MP
     p_cpu = data.p_cpu
     X_cpu = data.X_cpu
+    q_cpu = data.q_cpu
     p_gpu = data.p_gpu
     X_gpu = data.X_gpu
+    q_gpu = data.q_gpu
 
     manifold_label = "PowerManifold(UnitaryMatrices($n), $batch)"
 
+    # exp!
     cpu_ms, cpu_all, gpu_ms, gpu_all = _benchmark_cpu_gpu(
         () -> exp(MP, p_cpu, X_cpu),
         () -> CUDA.@sync exp(MP, p_gpu, X_gpu);
@@ -190,7 +224,7 @@ function benchmark_unitary(;
         Y_gpu = Array(CUDA.@sync exp(MP, p_gpu, X_gpu))
         norm(Y_cpu .- Y_gpu) / max(norm(Y_cpu), eps(Float32))
     end
-    return _print_results(;
+    _print_results(;
         name = "ExponentialRetraction",
         manifold_label = manifold_label,
         samples = samples,
@@ -200,6 +234,31 @@ function benchmark_unitary(;
         gpu_ms = gpu_ms,
         relerr = relerr,
         relerr_label = "||Ycpu - Ygpu||/||Ycpu||",
+    )
+
+    println()
+
+    # log!
+    cpu_ms, cpu_all, gpu_ms, gpu_all = _benchmark_cpu_gpu(
+        () -> log(MP, p_cpu, q_cpu),
+        () -> CUDA.@sync log(MP, p_gpu, q_gpu);
+        samples = samples,
+    )
+    relerr = begin
+        X_log_cpu = log(MP, p_cpu, q_cpu)
+        X_log_gpu = Array(CUDA.@sync log(MP, p_gpu, q_gpu))
+        norm(X_log_cpu .- X_log_gpu) / max(norm(X_log_cpu), eps(Float32))
+    end
+    return _print_results(;
+        name = "LogarithmicMap",
+        manifold_label = manifold_label,
+        samples = samples,
+        cpu_all = cpu_all,
+        gpu_all = gpu_all,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+        relerr_label = "||Xcpu - Xgpu||/||Xcpu||",
     )
 end
 

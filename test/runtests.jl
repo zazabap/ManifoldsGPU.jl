@@ -3,22 +3,14 @@ using Manifolds, ManifoldsBase
 using Random, Test
 
 # JLArray tests: always run (no hardware required).
-# Files matching test_jlarray_*.jl are auto-discovered in test/jlarray/.
-for f in sort(readdir(joinpath(@__DIR__, "jlarray"); join = true))
-    if startswith(basename(f), "test_jlarray_")
-        include(f)
-    end
-end
+include(joinpath(@__DIR__, "jlarray", "test_jlarray_euclidean.jl"))
+include(joinpath(@__DIR__, "jlarray", "test_jlarray_stiefel.jl"))
 
 # CUDA tests: only run when CUDA hardware is available.
-# Files matching test_cuda_*.jl are auto-discovered in test/cuda/.
 using CUDA
 if CUDA.functional()
-    for f in sort(readdir(joinpath(@__DIR__, "cuda"); join = true))
-        if startswith(basename(f), "test_cuda_")
-            include(f)
-        end
-    end
+    include(joinpath(@__DIR__, "cuda", "test_cuda_euclidean.jl"))
+    include(joinpath(@__DIR__, "cuda", "test_cuda_stiefel.jl"))
 else
     @info "CUDA not available, skipping CUDA tests"
 end

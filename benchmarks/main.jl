@@ -1,21 +1,4 @@
-using Random
-using Statistics
-
-using ManifoldsGPU
-using Manifolds
-using ManifoldsBase
-using CUDA
-
-function _time_median(f; samples::Int = 6)
-    timings = Vector{Float64}(undef, samples)
-    for i in 1:samples
-        GC.gc()
-        t0 = time_ns()
-        f()
-        timings[i] = (time_ns() - t0) / 1.0e6
-    end
-    return median(timings), timings
-end
+include("common.jl")
 
 function _setup_stiefel_data(; n::Int, k::Int, batch::Int, scale::Float32, seed::Int)
     Random.seed!(seed)
@@ -30,33 +13,6 @@ function _setup_stiefel_data(; n::Int, k::Int, batch::Int, scale::Float32, seed:
     X_gpu = CuArray(X_cpu)
 
     return (; MP, p_cpu, X_cpu, p_gpu, X_gpu)
-end
-
-function _benchmark_cpu_gpu(cpu_f, gpu_f; samples::Int)
-    cpu_f()
-    gpu_f()
-
-    cpu_ms, cpu_all = _time_median(cpu_f; samples = samples)
-    gpu_ms, gpu_all = _time_median(gpu_f; samples = samples)
-
-    return cpu_ms, cpu_all, gpu_ms, gpu_all
-end
-
-function _print_results(; name::String, n::Int, k::Int, batch::Int, samples::Int, cpu_all, gpu_all, cpu_ms::Float64, gpu_ms::Float64, relerr, relerr_label::String, extra_lines::Vector{String} = String[])
-    speedup = cpu_ms / gpu_ms
-
-    println("=== ManifoldsGPU benchmark: $name on PowerManifold($n×$k, batch=$batch) ===")
-    println("Element type: Float32")
-    for line in extra_lines
-        println(line)
-    end
-    println("Samples: $samples")
-    println("CPU times [ms]: ", round.(cpu_all; digits = 2))
-    println("GPU times [ms]: ", round.(gpu_all; digits = 2))
-    println("Median CPU [ms]: ", round(cpu_ms; digits = 2))
-    println("Median GPU [ms]: ", round(gpu_ms; digits = 2))
-    println("Speedup (CPU/GPU): ", round(speedup; digits = 2), "x")
-    return println("Relative error $relerr_label: ", relerr)
 end
 
 function _method_label(method::AbstractRetractionMethod)
@@ -133,8 +89,10 @@ function benchmark_stiefel_retraction(method::AbstractRetractionMethod; n::Int =
     )
 end
 
-function benchmark_grassmann_exp(; n::Int = 8, k::Int = 4, batch::Int = 2048,
-                                    scale::Float32 = 0.25f0, samples::Int = 6, seed::Int = 1234)
+function benchmark_grassmann_exp(;
+        n::Int = 8, k::Int = 4, batch::Int = 2048,
+        scale::Float32 = 0.25f0, samples::Int = 6, seed::Int = 1234
+    )
     Random.seed!(seed)
     M = Grassmann(n, k)
     MP = PowerManifold(M, batch)
@@ -162,10 +120,6 @@ function benchmark_grassmann_exp(; n::Int = 8, k::Int = 4, batch::Int = 2048,
         cpu_all = cpu_all, gpu_all = gpu_all, cpu_ms = cpu_ms, gpu_ms = gpu_ms,
         relerr = relerr, relerr_label = "||Ycpu - Ygpu||/||Ycpu||",
     )
-end
-
-function _parse_arg(i::Int, default)
-    return length(ARGS) >= i ? parse(typeof(default), ARGS[i]) : default
 end
 
 function main()

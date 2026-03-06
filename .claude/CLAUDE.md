@@ -36,7 +36,7 @@ All GPU code lives in `ext/ManifoldsGPUCUDAExt/`:
 ```
 ext/ManifoldsGPUCUDAExt/
 ├── ManifoldsGPUCUDAExt.jl          # Entry point, includes all manifold files
-├── helpers.jl                      # Shared: _matrix_exp_gpu (Scaling & Squaring, Taylor series, real+complex)
+├── helpers.jl                      # Shared: _matrix_exp_gpu, _matrix_log_gpu, _batched_inv_gpu, _batched_sqrtm_gpu
 ├── Stiefel.jl                      # exp!, retract_polar_fused! + retract_fused! for PowerManifold(Stiefel)
 ├── Grassmann.jl                    # exp!, retract_polar_fused! + retract_fused! for PowerManifold(Grassmann)
 ├── GeneralUnitaryMatrices.jl       # exp!, retract_polar_fused!, retract_fused!, project! for PowerManifold(GeneralUnitaryMatrices)
@@ -88,7 +88,7 @@ step = ArmijoLinesearch(M)
 |-----------------------|------------------------|---------------------------------------|
 | Stiefel               | `exp!`, `retract!`     | `gemm_strided_batched`, `gesvdj!`     |
 | Grassmann             | `exp!`, `retract!`     | `gemm_strided_batched`, `gesvdj!`     |
-| GeneralUnitaryMatrices| `exp!`, `log!`, `retract!`, `project!` | `gemm_strided_batched`, `gesvdj!`, `geev!` + Taylor series|
+| GeneralUnitaryMatrices| `exp!`, `log!`, `retract!`, `project!` | `gemm_strided_batched`, `gesvdj!`, `getrf/getri` + Taylor series|
 | SymmetricPositiveDefinite | `exp!`             | CPU eigendecomp per slice (serial)    |
 
 ### Manifolds That Do NOT Need PowerManifold Overrides

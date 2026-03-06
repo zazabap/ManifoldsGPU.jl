@@ -153,8 +153,9 @@ end
 GPU-accelerated logarithmic map for batched real `GeneralUnitaryMatrices`
 (including `Rotations` and `OrthogonalMatrices`).
 
-Computes `U = p' * q` via batched gemm, then `log(U)` via per-slice
-eigendecomposition (`geev!`), and projects to skew-symmetric.
+Computes `U = p' * q` via batched gemm, then `log(U)` via Inverse Scaling &
+Squaring (Denman-Beavers square root + Taylor series), and projects to
+skew-symmetric.
 """
 function ManifoldsBase.log!(
         ::PowerManifold{<:Any, <:Manifolds.GeneralUnitaryMatrices, <:Tuple, ArrayPowerRepresentation},
@@ -174,8 +175,9 @@ end
 GPU-accelerated logarithmic map for batched complex `GeneralUnitaryMatrices`
 (including `UnitaryMatrices`).
 
-Computes `U = p' * q` via batched gemm (adjoint), then `log(U)` via per-slice
-eigendecomposition (`geev!`), and projects to skew-Hermitian.
+Computes `U = p' * q` via batched gemm (adjoint), then `log(U)` via Inverse
+Scaling & Squaring (Denman-Beavers square root + Taylor series), and projects
+to skew-Hermitian.
 """
 function ManifoldsBase.log!(
         ::PowerManifold{<:Any, <:Manifolds.GeneralUnitaryMatrices, <:Tuple, ArrayPowerRepresentation},

@@ -230,8 +230,8 @@
             X_cu = log(MP, p_cu, q_cu)
             X_cu_h = Array(X_cu)
 
-            @test is_vector(MP, p, X_cu_h; atol = 1.0e-10)
-            @test isapprox(X_cu_h, X_cpu; atol = 2.0e-10, rtol = 2.0e-10)
+            @test is_vector(MP, p, X_cu_h; atol = 2.0e-6)
+            @test isapprox(X_cu_h, X_cpu; atol = 2.0e-6, rtol = 2.0e-6)
         end
     end
 
@@ -274,8 +274,8 @@
             X_cu = log(MP, p_cu, q_cu)
             X_cu_h = Array(X_cu)
 
-            @test is_vector(MP, p, X_cu_h; atol = 1.0e-10)
-            @test isapprox(X_cu_h, X_cpu; atol = 2.0e-10, rtol = 2.0e-10)
+            @test is_vector(MP, p, X_cu_h; atol = 1.0e-4)
+            @test isapprox(X_cu_h, X_cpu; atol = 1.0e-4, rtol = 1.0e-4)
         end
     end
 

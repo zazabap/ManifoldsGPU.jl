@@ -72,14 +72,20 @@ end
     _matrix_log_gpu(A::CuArray{T, 2})
     _matrix_log_gpu(A::CuArray{T, 3})
 
-GPU matrix logarithm via per-slice eigendecomposition.
+GPU matrix logarithm via Inverse Scaling & Squaring with Denman-Beavers iteration.
 
-For each slice `A[:,:,i]`, computes `eigen(A_i)` via cuSOLVER `geev!`, then
-reconstructs `log(A_i) = V * Diag(log(λ)) * V⁻¹`. Real inputs are promoted
-to complex for eigendecomposition, then the real part is taken.
+Uses the identity `log(A) = 2^s * log(A^{1/2^s})`, where repeated matrix square
+roots bring `A` close to `I`, then a Taylor series computes `log(I + X)`. Matrix
+square roots are computed via the Denman-Beavers iteration using batched LU-based
+inversion (`getrf_strided_batched!` + `getri_strided_batched!`).
 
-Note: No batched `geev!` exists in cuSOLVER, so this loops over the batch
-dimension with sequential kernel launches (all computation stays on GPU).
+Real inputs are promoted to complex (square roots of unitary matrices may have
+complex entries), then the real part is taken.
+
+Parameters (tuned for `Rotations(n)` with `n ≤ 32`):
+- `sqrtm_count=4`: number of repeated square roots (scaling factor `2^s`)
+- `db_iters=10`: Denman-Beavers iterations per square root
+- `taylor_order=16`: terms in `log(I+X)` Taylor series
 """
 function _matrix_log_gpu(A::CuArray{T, 2}) where {T <: Real}
     L = _matrix_log_gpu(reshape(A, size(A, 1), size(A, 2), 1))
@@ -91,18 +97,59 @@ function _matrix_log_gpu(A::CuArray{T, 2}) where {T <: Complex}
     return reshape(L, size(A))
 end
 
-function _matrix_log_gpu(A::CuArray{T, 3}) where {T <: Complex}
+# Batched matrix inverse via LU factorization (used by Denman-Beavers)
+function _batched_inv_gpu(A::CuArray{T, 3}) where {T}
+    A_lu = copy(A)
+    pivot = CUDA.zeros(Int32, size(A, 1), size(A, 3))
+    CUDA.CUBLAS.getrf_strided_batched!(A_lu, pivot)
+    C = similar(A)
+    CUDA.CUBLAS.getri_strided_batched!(A_lu, C, pivot)
+    return C
+end
+
+# Denman-Beavers iteration for batched matrix square root
+function _batched_sqrtm_gpu(A::CuArray{T, 3}; iters::Int = 10) where {T}
+    nn = size(A, 1)
+    I_n = reshape(CuArray(Matrix{T}(I, nn, nn)), nn, nn, 1)
+    Y = copy(A)
+    Z = similar(A)
+    Z .= I_n
+    for _ in 1:iters
+        Zinv = _batched_inv_gpu(Z)
+        Yinv = _batched_inv_gpu(Y)
+        Y = (Y .+ Zinv) ./ T(2)
+        Z = (Z .+ Yinv) ./ T(2)
+    end
+    return Y
+end
+
+function _matrix_log_gpu(
+        A::CuArray{T, 3}; sqrtm_count::Int = 4, db_iters::Int = 10, taylor_order::Int = 16,
+    ) where {T <: Complex}
     n, m, batch = size(A)
     n == m ||
         throw(DimensionMismatch("matrix logarithm requires square matrices, got ($n, $m, $batch)"))
-    result = similar(A)
-    for i in 1:batch
-        A_i = A[:, :, i]
-        F = eigen(A_i)
-        log_slice = F.vectors * Diagonal(log.(F.values)) * inv(F.vectors)
-        result[:, :, i] .= log_slice
+
+    # Inverse Scaling: take s repeated square roots to bring A close to I
+    B = copy(A)
+    for _ in 1:sqrtm_count
+        B = _batched_sqrtm_gpu(B; iters = db_iters)
     end
-    return result
+
+    # Taylor series: log(I + X) = X - X²/2 + X³/3 - ...
+    I_n = reshape(CuArray(Matrix{T}(I, n, n)), n, n, 1)
+    X_mat = B .- I_n
+    L = copy(X_mat)
+    term = copy(X_mat)
+    for j in 2:taylor_order
+        term = CUDA.CUBLAS.gemm_strided_batched('N', 'N', term, X_mat)
+        sign_j = iseven(j) ? T(-1) : T(1)
+        L .+= sign_j .* term ./ T(j)
+    end
+
+    # Squaring: undo the scaling
+    L .*= T(2)^sqrtm_count
+    return L
 end
 
 function _matrix_log_gpu(A::CuArray{T, 3}) where {T <: Real}

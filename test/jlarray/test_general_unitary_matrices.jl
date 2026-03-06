@@ -121,5 +121,53 @@ using GPUArrays
         @test isapprox(Y_jl_h, Y_cpu; atol = 2.0e-14, rtol = 2.0e-14)
     end
 
+    # Test 6: Rotations log! (Float64)
+    @testset "Rotations log! Float64" begin
+        Random.seed!(60)
+
+        M = Rotations(4)
+        MP = PowerManifold(M, 16)
+
+        for _ in 1:3
+            p = rand(MP)
+            q = rand(MP)
+            X_cpu = log(MP, p, q)
+
+            p_jl = JLArray(p)
+            q_jl = JLArray(q)
+            X_jl = log(MP, p_jl, q_jl)
+            X_jl_h = Array(X_jl)
+
+            @test is_vector(MP, p, X_jl_h; atol = 1.0e-10)
+            @test isapprox(X_jl_h, X_cpu; atol = 2.0e-10, rtol = 2.0e-10)
+        end
+    end
+
+    # Test 7: Rotations log! (Float32)
+    @testset "Rotations log! Float32" begin
+        Random.seed!(61)
+
+        M = Rotations(4)
+        MP = PowerManifold(M, 16)
+
+        for _ in 1:3
+            p = Float32.(rand(MP))
+            q = Float32.(rand(MP))
+            X_cpu = log(MP, p, q)
+
+            p_jl = JLArray(p)
+            q_jl = JLArray(q)
+            X_jl = log(MP, p_jl, q_jl)
+            X_jl_h = Array(X_jl)
+
+            @test is_vector(MP, p, X_jl_h; atol = 1.0f-3)
+            @test isapprox(X_jl_h, X_cpu; atol = 2.0f-3, rtol = 2.0f-3)
+        end
+    end
+
+    # NOTE: UnitaryMatrices log! JLArray test is skipped because JLArray hits a
+    # map() ambiguity in GPUArrays/LinearAlgebra for log(UpperTriangular(JLArray)).
+    # UnitaryMatrices log! is tested in test/cuda/test_general_unitary_matrices.jl.
+
     GPUArrays.allowscalar(false)
 end

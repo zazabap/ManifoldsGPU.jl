@@ -115,8 +115,6 @@
     end
 
     # 6. UnitaryMatrices retract_polar_fused batched
-    # NOTE: CPU retract_polar_fused! has upstream bug for UnitaryMatrices (check_det kwarg).
-    # Only test GPU path via is_point, do NOT compare with CPU.
     @testset "UnitaryMatrices retract_polar_fused batched" begin
         Random.seed!(48)
 
@@ -127,6 +125,9 @@
         p = rand(MP)
         X = 0.25 .* rand(MP; vector_at = p)
 
+        q = similar(p)
+        ManifoldsBase.retract_fused!(MP, q, p, X, t, PolarRetraction())
+
         p_cu = CuArray(p)
         X_cu = CuArray(X)
         q_cu = similar(p_cu)
@@ -134,6 +135,7 @@
         q_cu_h = Array(q_cu)
 
         @test is_point(MP, q_cu_h)
+        @test isapprox(q_cu_h, q; atol = 2.0f-5, rtol = 2.0f-5)
     end
 
     # 7. Rotations project! tangent

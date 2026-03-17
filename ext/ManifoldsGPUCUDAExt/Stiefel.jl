@@ -31,6 +31,23 @@ function ManifoldsBase.exp!(
     return q
 end
 
+function ManifoldsBase.inner(
+        ::PowerManifold{ℝ, <:Stiefel{ℝ}, <:Tuple, ArrayPowerRepresentation},
+        p::CuArray{T, 3},
+        X::CuArray{T, 3},
+        Y::CuArray{T, 3},
+    ) where {T <: Real}
+    return dot(X, Y)
+end
+
+function ManifoldsBase.norm(
+        ::PowerManifold{ℝ, <:Stiefel{ℝ}, <:Tuple, ArrayPowerRepresentation},
+        p::CuArray{T, 3},
+        X::CuArray{T, 3},
+    ) where {T <: Real}
+    return sqrt(dot(X, X))
+end
+
 function ManifoldsBase.retract_polar_fused!(
         ::PowerManifold{ℝ, <:Stiefel{ℝ}, <:Tuple, ArrayPowerRepresentation},
         q::CuArray{T, 3},

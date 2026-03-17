@@ -1,5 +1,6 @@
 using Random
 using Statistics
+using LinearAlgebra
 
 using ManifoldsGPU
 using Manifolds
@@ -17,21 +18,6 @@ function _time_median(f; samples::Int = 6)
     return median(timings), timings
 end
 
-function _setup_stiefel_data(; n::Int, k::Int, batch::Int, scale::Float32, seed::Int)
-    Random.seed!(seed)
-
-    M = Stiefel(n, k)
-    MP = PowerManifold(M, batch)
-
-    p_cpu = Float32.(rand(MP))
-    X_cpu = scale .* Float32.(rand(MP; vector_at = p_cpu))
-
-    p_gpu = CuArray(p_cpu)
-    X_gpu = CuArray(X_cpu)
-
-    return (; MP, p_cpu, X_cpu, p_gpu, X_gpu)
-end
-
 function _benchmark_cpu_gpu(cpu_f, gpu_f; samples::Int)
     cpu_f()
     gpu_f()
@@ -42,11 +28,21 @@ function _benchmark_cpu_gpu(cpu_f, gpu_f; samples::Int)
     return cpu_ms, cpu_all, gpu_ms, gpu_all
 end
 
-function _print_results(; name::String, n::Int, k::Int, batch::Int, samples::Int, cpu_all, gpu_all, cpu_ms::Float64, gpu_ms::Float64, relerr, relerr_label::String, extra_lines::Vector{String} = String[])
+function _print_results(;
+        name::String,
+        manifold_label::String,
+        samples::Int,
+        cpu_all,
+        gpu_all,
+        cpu_ms::Float64,
+        gpu_ms::Float64,
+        relerr,
+        relerr_label::String,
+        extra_lines::Vector{String} = String[],
+    )
     speedup = cpu_ms / gpu_ms
 
-    println("=== ManifoldsGPU benchmark: $name on PowerManifold(Stiefel($n, $k), $batch) ===")
-    println("Element type: Float32")
+    println("=== ManifoldsGPU benchmark: $name on $manifold_label ===")
     for line in extra_lines
         println(line)
     end
@@ -59,18 +55,250 @@ function _print_results(; name::String, n::Int, k::Int, batch::Int, samples::Int
     return println("Relative error $relerr_label: ", relerr)
 end
 
+function _benchmark_result(; manifold_label::String, operation::String, samples::Int, cpu_ms::Float64, gpu_ms::Float64, relerr)
+    speedup = gpu_ms == 0.0 ? Inf : cpu_ms / gpu_ms
+    return (
+        manifold = manifold_label,
+        operation = operation,
+        samples = samples,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        speedup = speedup,
+        relerr = relerr,
+    )
+end
+
+function generate_markdown_summary_table(results)
+    lines = String[
+        "| Manifold | Operation | CPU median [ms] | GPU median [ms] | Speedup CPU/GPU | Relative error |",
+        "| --- | --- | ---: | ---: | ---: | ---: |",
+    ]
+
+    for r in results
+        cpu_s = string(round(r.cpu_ms; digits = 2))
+        gpu_s = string(round(r.gpu_ms; digits = 2))
+        speedup_s = string(round(r.speedup; digits = 2))
+        relerr_s = string(round(Float64(r.relerr); sigdigits = 4))
+        push!(
+            lines,
+            "| $(r.manifold) | $(r.operation) | $cpu_s | $gpu_s | $speedup_s | $relerr_s |",
+        )
+    end
+
+    return join(lines, "\n")
+end
+
+function _relative_error(cpu_res, gpu_res)
+    if cpu_res isa Number
+        return abs(cpu_res - gpu_res) / max(abs(cpu_res), eps(Float32))
+    end
+    return norm(cpu_res .- gpu_res) / max(norm(cpu_res), eps(Float32))
+end
+
 function _method_label(method::AbstractRetractionMethod)
     return string(nameof(typeof(method)))
 end
 
-function benchmark_stiefel_retraction(method::AbstractRetractionMethod; n::Int = 32, k::Int = 16, batch::Int = 2048, scale::Float32 = 0.2f0, t::Float32 = 0.3f0, samples::Int = 6, seed::Int = 1234)
-    data = _setup_stiefel_data(; n = n, k = k, batch = batch, scale = scale, seed = seed)
-    MP = data.MP
-    p_cpu = data.p_cpu
-    X_cpu = data.X_cpu
-    p_gpu = data.p_gpu
-    X_gpu = data.X_gpu
+function _setup_data(
+        M;
+        batch::Int,
+        scale::Float32,
+        seed::Int,
+        point_type = Float32,
+        use_power_manifold::Bool = true,
+    )
+    Random.seed!(seed)
 
+    MB = use_power_manifold ? PowerManifold(M, batch) : M
+
+    p_cpu = point_type.(rand(MB))
+    q_cpu = point_type.(rand(MB))
+    X_cpu = scale .* point_type.(rand(MB; vector_at = p_cpu))
+    Y_cpu = scale .* point_type.(rand(MB; vector_at = p_cpu))
+    Z_cpu = scale .* rand(point_type, size(p_cpu)...)
+
+    p_gpu = CuArray(p_cpu)
+    q_gpu = CuArray(q_cpu)
+    X_gpu = CuArray(X_cpu)
+    Y_gpu = CuArray(Y_cpu)
+    Z_gpu = CuArray(Z_cpu)
+
+    return (; MB, p_cpu, q_cpu, X_cpu, Y_cpu, Z_cpu, p_gpu, q_gpu, X_gpu, Y_gpu, Z_gpu)
+end
+
+function _benchmark_log!(; MP, p_cpu, q_cpu, p_gpu, q_gpu, X_cpu, X_gpu, samples::Int, manifold_label::String)
+    cpu_ms, cpu_all, gpu_ms, gpu_all = _benchmark_cpu_gpu(
+        () -> log!(MP, X_cpu, p_cpu, q_cpu),
+        () -> CUDA.@sync log!(MP, X_gpu, p_gpu, q_gpu);
+        samples = samples,
+    )
+
+    cpu_res = log!(MP, X_cpu, p_cpu, q_cpu)
+    gpu_res = Array(CUDA.@sync log!(MP, X_gpu, p_gpu, q_gpu))
+    relerr = _relative_error(cpu_res, gpu_res)
+
+    _print_results(
+        name = "log!",
+        manifold_label = manifold_label,
+        samples = samples,
+        cpu_all = cpu_all,
+        gpu_all = gpu_all,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+        relerr_label = "||Xcpu - Xgpu||/||Xcpu||",
+    )
+    return _benchmark_result(
+        manifold_label = manifold_label,
+        operation = "log!",
+        samples = samples,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+    )
+end
+
+function _benchmark_exp(; MP, p_cpu, X_cpu, p_gpu, X_gpu, samples::Int, manifold_label::String)
+    cpu_ms, cpu_all, gpu_ms, gpu_all = _benchmark_cpu_gpu(
+        () -> exp(MP, p_cpu, X_cpu),
+        () -> CUDA.@sync exp(MP, p_gpu, X_gpu);
+        samples = samples,
+    )
+
+    cpu_res = exp(MP, p_cpu, X_cpu)
+    gpu_res = Array(CUDA.@sync exp(MP, p_gpu, X_gpu))
+    relerr = _relative_error(cpu_res, gpu_res)
+
+    _print_results(
+        name = "exp",
+        manifold_label = manifold_label,
+        samples = samples,
+        cpu_all = cpu_all,
+        gpu_all = gpu_all,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+        relerr_label = "||Ycpu - Ygpu||/||Ycpu||",
+    )
+    return _benchmark_result(
+        manifold_label = manifold_label,
+        operation = "exp",
+        samples = samples,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+    )
+end
+
+function _benchmark_inner(; MP, p_cpu, X_cpu, Y_cpu, p_gpu, X_gpu, Y_gpu, samples::Int, manifold_label::String)
+    cpu_ms, cpu_all, gpu_ms, gpu_all = _benchmark_cpu_gpu(
+        () -> inner(MP, p_cpu, X_cpu, Y_cpu),
+        () -> CUDA.@sync inner(MP, p_gpu, X_gpu, Y_gpu);
+        samples = samples,
+    )
+
+    cpu_res = inner(MP, p_cpu, X_cpu, Y_cpu)
+    gpu_res = CUDA.@sync inner(MP, p_gpu, X_gpu, Y_gpu)
+    relerr = _relative_error(cpu_res, gpu_res)
+
+    _print_results(
+        name = "inner",
+        manifold_label = manifold_label,
+        samples = samples,
+        cpu_all = cpu_all,
+        gpu_all = gpu_all,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+        relerr_label = "|icpu - igpu|/|icpu|",
+    )
+    return _benchmark_result(
+        manifold_label = manifold_label,
+        operation = "inner",
+        samples = samples,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+    )
+end
+
+function _benchmark_norm(; MP, p_cpu, X_cpu, p_gpu, X_gpu, samples::Int, manifold_label::String)
+    cpu_ms, cpu_all, gpu_ms, gpu_all = _benchmark_cpu_gpu(
+        () -> norm(MP, p_cpu, X_cpu),
+        () -> CUDA.@sync norm(MP, p_gpu, X_gpu);
+        samples = samples,
+    )
+
+    cpu_res = norm(MP, p_cpu, X_cpu)
+    gpu_res = CUDA.@sync norm(MP, p_gpu, X_gpu)
+    relerr = _relative_error(cpu_res, gpu_res)
+
+    _print_results(
+        name = "norm",
+        manifold_label = manifold_label,
+        samples = samples,
+        cpu_all = cpu_all,
+        gpu_all = gpu_all,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+        relerr_label = "|ncpu - ngpu|/|ncpu|",
+    )
+    return _benchmark_result(
+        manifold_label = manifold_label,
+        operation = "norm",
+        samples = samples,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+    )
+end
+
+function _benchmark_project!(; MP, p_cpu, Z_cpu, p_gpu, Z_gpu, X_cpu, X_gpu, samples::Int, manifold_label::String)
+    cpu_ms, cpu_all, gpu_ms, gpu_all = _benchmark_cpu_gpu(
+        () -> project!(MP, X_cpu, p_cpu, Z_cpu),
+        () -> CUDA.@sync project!(MP, X_gpu, p_gpu, Z_gpu);
+        samples = samples,
+    )
+
+    cpu_res = project!(MP, X_cpu, p_cpu, Z_cpu)
+    gpu_res = Array(CUDA.@sync project!(MP, X_gpu, p_gpu, Z_gpu))
+    relerr = _relative_error(cpu_res, gpu_res)
+
+    _print_results(
+        name = "project!",
+        manifold_label = manifold_label,
+        samples = samples,
+        cpu_all = cpu_all,
+        gpu_all = gpu_all,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+        relerr_label = "||Xcpu - Xgpu||/||Xcpu||",
+    )
+    return _benchmark_result(
+        manifold_label = manifold_label,
+        operation = "project!",
+        samples = samples,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+    )
+end
+
+function _benchmark_stiefel_retraction(
+        method::AbstractRetractionMethod;
+        MP,
+        p_cpu,
+        X_cpu,
+        p_gpu,
+        X_gpu,
+        t::Float32,
+        samples::Int,
+        manifold_label::String,
+    )
+    q_cpu = similar(p_cpu)
+    q_gpu = similar(p_gpu)
     method_name = _method_label(method)
 
     if method isa ExponentialRetraction
@@ -80,17 +308,13 @@ function benchmark_stiefel_retraction(method::AbstractRetractionMethod; n::Int =
             samples = samples,
         )
 
-        relerr = begin
-            Y_cpu = exp(MP, p_cpu, X_cpu)
-            Y_gpu = Array(CUDA.@sync exp(MP, p_gpu, X_gpu))
-            norm(Y_cpu .- Y_gpu) / max(norm(Y_cpu), eps(Float32))
-        end
+        cpu_res = exp(MP, p_cpu, X_cpu)
+        gpu_res = Array(CUDA.@sync exp(MP, p_gpu, X_gpu))
+        relerr = _relative_error(cpu_res, gpu_res)
 
-        return _print_results(
+        _print_results(
             name = method_name,
-            n = n,
-            k = k,
-            batch = batch,
+            manifold_label = manifold_label,
             samples = samples,
             cpu_all = cpu_all,
             gpu_all = gpu_all,
@@ -98,11 +322,18 @@ function benchmark_stiefel_retraction(method::AbstractRetractionMethod; n::Int =
             gpu_ms = gpu_ms,
             relerr = relerr,
             relerr_label = "||Ycpu - Ygpu||/||Ycpu||",
+            extra_lines = ["Retraction method: $method_name"],
+        )
+
+        return _benchmark_result(
+            manifold_label = manifold_label,
+            operation = "exp($method_name)",
+            samples = samples,
+            cpu_ms = cpu_ms,
+            gpu_ms = gpu_ms,
+            relerr = relerr,
         )
     end
-
-    q_cpu = similar(p_cpu)
-    q_gpu = similar(p_gpu)
 
     cpu_ms, cpu_all, gpu_ms, gpu_all = _benchmark_cpu_gpu(
         () -> ManifoldsBase.retract_fused!(MP, q_cpu, p_cpu, X_cpu, t, method),
@@ -110,18 +341,13 @@ function benchmark_stiefel_retraction(method::AbstractRetractionMethod; n::Int =
         samples = samples,
     )
 
-    relerr = begin
-        ManifoldsBase.retract_fused!(MP, q_cpu, p_cpu, X_cpu, t, method)
-        CUDA.@sync ManifoldsBase.retract_fused!(MP, q_gpu, p_gpu, X_gpu, t, method)
-        q_gpu_h = Array(q_gpu)
-        norm(q_cpu .- q_gpu_h) / max(norm(q_cpu), eps(Float32))
-    end
+    cpu_res = ManifoldsBase.retract_fused!(MP, q_cpu, p_cpu, X_cpu, t, method)
+    gpu_res = Array(CUDA.@sync ManifoldsBase.retract_fused!(MP, q_gpu, p_gpu, X_gpu, t, method))
+    relerr = _relative_error(cpu_res, gpu_res)
 
-    return _print_results(
+    _print_results(
         name = method_name,
-        n = n,
-        k = k,
-        batch = batch,
+        manifold_label = manifold_label,
         samples = samples,
         cpu_all = cpu_all,
         gpu_all = gpu_all,
@@ -131,6 +357,181 @@ function benchmark_stiefel_retraction(method::AbstractRetractionMethod; n::Int =
         relerr_label = "||Qcpu - Qgpu||/||Qcpu||",
         extra_lines = ["Retraction scalar t: $t", "Retraction method: $method_name"],
     )
+
+    return _benchmark_result(
+        manifold_label = manifold_label,
+        operation = "retract_fused!($method_name)",
+        samples = samples,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+    )
+end
+
+function benchmark_stiefel_retractions(; n::Int, k::Int, batch::Int, scale::Float32, t::Float32, samples::Int, seed::Int)
+    data = _setup_data(
+        Stiefel(n, k);
+        batch = batch,
+        scale = scale,
+        seed = seed,
+        point_type = Float32,
+        use_power_manifold = true,
+    )
+
+    MP = data.MB
+    p_cpu = data.p_cpu
+    X_cpu = data.X_cpu
+    p_gpu = data.p_gpu
+    X_gpu = data.X_gpu
+
+    manifold_label = "PowerManifold(Stiefel($n, $k), $batch)"
+    results = NamedTuple[]
+
+    println("=== Stiefel retraction benchmarks ===")
+    println("Point element type: $(eltype(p_cpu))")
+    println()
+
+    push!(
+        results, _benchmark_stiefel_retraction(
+            ExponentialRetraction();
+            MP = MP,
+            p_cpu = p_cpu,
+            X_cpu = X_cpu,
+            p_gpu = p_gpu,
+            X_gpu = X_gpu,
+            t = t,
+            samples = samples,
+            manifold_label = manifold_label,
+        )
+    )
+    println()
+
+    push!(
+        results, _benchmark_stiefel_retraction(
+            PolarRetraction();
+            MP = MP,
+            p_cpu = p_cpu,
+            X_cpu = X_cpu,
+            p_gpu = p_gpu,
+            X_gpu = X_gpu,
+            t = t,
+            samples = samples,
+            manifold_label = manifold_label,
+        )
+    )
+    println()
+
+    return results
+end
+
+function benchmark_manifold(
+        name::String,
+        M;
+        batch::Int,
+        scale::Float32,
+        samples::Int,
+        seed::Int,
+        point_type,
+        use_power_manifold::Bool = true,
+    )
+    data = _setup_data(
+        M;
+        batch = batch,
+        scale = scale,
+        seed = seed,
+        point_type = point_type,
+        use_power_manifold = use_power_manifold,
+    )
+
+    MB = data.MB
+    p_cpu = data.p_cpu
+    q_cpu = data.q_cpu
+    X_cpu = data.X_cpu
+    Y_cpu = data.Y_cpu
+    Z_cpu = data.Z_cpu
+    p_gpu = data.p_gpu
+    q_gpu = data.q_gpu
+    X_gpu = data.X_gpu
+    Y_gpu = data.Y_gpu
+    Z_gpu = data.Z_gpu
+
+    manifold_label = use_power_manifold ? "PowerManifold($name, $batch)" : name
+    results = NamedTuple[]
+    println("=== $name benchmarks ===")
+    println("Point element type: $(eltype(p_cpu))")
+    println()
+
+    push!(
+        results, _benchmark_exp(;
+            MP = MB,
+            p_cpu = p_cpu,
+            X_cpu = X_cpu,
+            p_gpu = p_gpu,
+            X_gpu = X_gpu,
+            samples = samples,
+            manifold_label = manifold_label,
+        )
+    )
+    println()
+
+    push!(
+        results, _benchmark_log!(;
+            MP = MB,
+            p_cpu = p_cpu,
+            q_cpu = q_cpu,
+            p_gpu = p_gpu,
+            q_gpu = q_gpu,
+            X_cpu = X_cpu,
+            X_gpu = X_gpu,
+            samples = samples,
+            manifold_label = manifold_label,
+        )
+    )
+    println()
+
+    push!(
+        results, _benchmark_inner(;
+            MP = MB,
+            p_cpu = p_cpu,
+            X_cpu = X_cpu,
+            Y_cpu = Y_cpu,
+            p_gpu = p_gpu,
+            X_gpu = X_gpu,
+            Y_gpu = Y_gpu,
+            samples = samples,
+            manifold_label = manifold_label,
+        )
+    )
+    println()
+
+    push!(
+        results, _benchmark_norm(;
+            MP = MB,
+            p_cpu = p_cpu,
+            X_cpu = X_cpu,
+            p_gpu = p_gpu,
+            X_gpu = X_gpu,
+            samples = samples,
+            manifold_label = manifold_label,
+        )
+    )
+    println()
+
+    push!(
+        results, _benchmark_project!(;
+            MP = MB,
+            p_cpu = p_cpu,
+            Z_cpu = Z_cpu,
+            p_gpu = p_gpu,
+            Z_gpu = Z_gpu,
+            X_cpu = X_cpu,
+            X_gpu = X_gpu,
+            samples = samples,
+            manifold_label = manifold_label,
+        )
+    )
+    println()
+    return results
 end
 
 function _parse_arg(i::Int, default)
@@ -142,12 +543,94 @@ function main()
     k = _parse_arg(2, 16)
     batch = _parse_arg(3, 2048)
     samples = _parse_arg(4, 6)
+    scale = 0.2f0
+    t = 0.3f0
+    seed = 1234
 
     println("Running with n=$n, k=$k, batch=$batch, samples=$samples")
     println()
-    benchmark_stiefel_retraction(ExponentialRetraction(); n = n, k = k, batch = batch, samples = samples)
-    println()
-    return benchmark_stiefel_retraction(PolarRetraction(); n = n, k = k, batch = batch, samples = samples)
+
+    all_results = NamedTuple[]
+
+    append!(
+        all_results, benchmark_manifold(
+            "Euclidean($n, $k, $batch)",
+            Euclidean(n, k, batch);
+            batch = batch,
+            scale = scale,
+            samples = samples,
+            seed = seed,
+            point_type = Float32,
+            use_power_manifold = false,
+        )
+    )
+
+    append!(
+        all_results, benchmark_manifold(
+            "Sphere($(n - 1))",
+            Sphere(n - 1);
+            batch = batch,
+            scale = scale,
+            samples = samples,
+            seed = seed + 1,
+            point_type = Float32,
+        )
+    )
+
+    append!(
+        all_results, benchmark_manifold(
+            "Rotations($n)",
+            Rotations(n);
+            batch = batch,
+            scale = scale,
+            samples = samples,
+            seed = seed + 2,
+            point_type = Float32,
+        )
+    )
+
+    append!(
+        all_results, benchmark_manifold(
+            "UnitaryMatrices($n)",
+            UnitaryMatrices(n);
+            batch = batch,
+            scale = scale,
+            samples = samples,
+            seed = seed + 3,
+            point_type = ComplexF32,
+        )
+    )
+
+    append!(
+        all_results, benchmark_manifold(
+            "Grassmann($n, $k)",
+            Grassmann(n, k);
+            batch = batch,
+            scale = scale,
+            samples = samples,
+            seed = seed + 4,
+            point_type = Float32,
+        )
+    )
+
+    append!(
+        all_results, benchmark_stiefel_retractions(
+            n = n,
+            k = k,
+            batch = batch,
+            scale = scale,
+            t = t,
+            samples = samples,
+            seed = seed + 5,
+        )
+    )
+
+    markdown_table = generate_markdown_summary_table(all_results)
+    println("=== Markdown summary table ===")
+    println("Device: ", CUDA.name(CUDA.device()), ", eltype: Float32/ComplexF32")
+    println(markdown_table)
+
+    return markdown_table
 end
 
 main()

@@ -18,6 +18,8 @@ using GPUArrays
     # CUDA tests (requires GPU hardware)
     if CUDA.functional()
         @testset "CUDA" begin
+            include(joinpath(@__DIR__, "cuda", "test_grassmann.jl"))
+            include(joinpath(@__DIR__, "cuda", "test_sphere.jl"))
             include(joinpath(@__DIR__, "cuda", "test_stiefel.jl"))
             include(joinpath(@__DIR__, "cuda", "test_general_unitary_matrices.jl"))
         end

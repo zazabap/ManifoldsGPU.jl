@@ -11,6 +11,23 @@ function ManifoldsBase.exp!(
     return q
 end
 
+function ManifoldsBase.inner(
+        ::PowerManifold{ℝ, <:Manifolds.GeneralUnitaryMatrices, <:Tuple, ArrayPowerRepresentation},
+        p::CuArray{T, 3},
+        X::CuArray{T, 3},
+        Y::CuArray{T, 3},
+    ) where {T <: Number}
+    return dot(X, Y)
+end
+
+function ManifoldsBase.norm(
+        ::PowerManifold{ℝ, <:Manifolds.GeneralUnitaryMatrices, <:Tuple, ArrayPowerRepresentation},
+        p::CuArray{T, 3},
+        X::CuArray{T, 3},
+    ) where {T <: Number}
+    return sqrt(dot(X, X))
+end
+
 function ManifoldsBase.retract_polar_fused!(
         ::PowerManifold{<:Any, <:Manifolds.GeneralUnitaryMatrices, <:Tuple, ArrayPowerRepresentation},
         q::CuArray{T, 3},

@@ -1,5 +1,7 @@
 # ManifoldsGPU
 
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://juliamanifolds.github.io/ManifoldsGPU.jl/dev/)
+
 General GPU/CUDA support for the JuliaManifolds ecosystem.
 
 The package is in early stages of development, and the API is not yet stable.

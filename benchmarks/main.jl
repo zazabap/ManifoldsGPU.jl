@@ -7,7 +7,6 @@
 
 include(joinpath(@__DIR__, "utils.jl"))
 include(joinpath(@__DIR__, "GeneralUnitaryMatrices.jl"))
-include(joinpath(@__DIR__, "Grassmann.jl"))
 
 function benchmark_stiefel_retractions(; n::Int, k::Int, batch::Int, scale::Float32, t::Float32, samples::Int, seed::Int)
     data = _setup_data(
@@ -58,7 +57,7 @@ function main()
 
     append!(all_results, benchmark_unitary(; n = n, batch = batch, scale = scale, samples = samples, seed = seed + 3))
 
-    append!(all_results, benchmark_grassmann(; n = n, k = k, batch = batch, scale = scale, samples = samples, seed = seed + 4))
+    append!(all_results, benchmark_manifold("Grassmann($n, $k)", Grassmann(n, k); batch = batch, scale = scale, samples = samples, seed = seed + 4, point_type = Float32, exp_error_fn = _subspace_error))
 
     append!(all_results, benchmark_stiefel_retractions(; n = n, k = k, batch = batch, scale = scale, t = t, samples = samples, seed = seed + 5))
 

@@ -24,5 +24,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
     push!(results, _benchmark_retraction(PolarRetraction(); MP = data.MB, p_cpu = data.p_cpu, X_cpu = data.X_cpu, p_gpu = data.p_gpu, X_gpu = data.X_gpu, t = t, samples = samples, manifold_label = manifold_label))
     println()
 
+    # Distance benchmark
+    push!(results, _benchmark_distance(; MP = data.MB, p_cpu = data.p_cpu, q_cpu = data.q_cpu, p_gpu = data.p_gpu, q_gpu = data.q_gpu, samples = samples, manifold_label = manifold_label))
+    println()
+
     println(generate_markdown_summary_table(results))
 end

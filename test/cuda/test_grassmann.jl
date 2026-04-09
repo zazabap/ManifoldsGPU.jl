@@ -258,4 +258,235 @@
         @test is_point(MP, q_cu_h)
         @test isapprox(q_cu_h, q; atol = 2.0f-5, rtol = 2.0f-5)
     end
+
+    @testset "inverse_retract_polar Float64" begin
+        Random.seed!(90)
+
+        M = Grassmann(8, 4)
+        MP = PowerManifold(M, 32)
+
+        p = rand(MP)
+        q = rand(MP)
+
+        X_cpu = similar(p)
+        ManifoldsBase.inverse_retract!(MP, X_cpu, p, q, PolarInverseRetraction())
+
+        p_cu = CuArray(p)
+        q_cu = CuArray(q)
+        X_cu = similar(p_cu)
+        ManifoldsBase.inverse_retract!(MP, X_cu, p_cu, q_cu, PolarInverseRetraction())
+        X_cu_h = Array(X_cu)
+
+        @test isapprox(X_cu_h, X_cpu; atol = 2.0e-14, rtol = 2.0e-14)
+    end
+
+    @testset "inverse_retract_polar Float32" begin
+        Random.seed!(91)
+
+        M = Grassmann(8, 4)
+        MP = PowerManifold(M, 32)
+
+        p = Float32.(rand(MP))
+        q = Float32.(rand(MP))
+
+        X_cpu = similar(p)
+        ManifoldsBase.inverse_retract!(MP, X_cpu, p, q, PolarInverseRetraction())
+
+        p_cu = CuArray(p)
+        q_cu = CuArray(q)
+        X_cu = similar(p_cu)
+        ManifoldsBase.inverse_retract!(MP, X_cu, p_cu, q_cu, PolarInverseRetraction())
+        X_cu_h = Array(X_cu)
+
+        @test isapprox(X_cu_h, X_cpu; atol = 2.0f-5, rtol = 2.0f-5)
+    end
+
+    @testset "log! Float64" begin
+        Random.seed!(92)
+
+        M = Grassmann(8, 4)
+        MP = PowerManifold(M, 32)
+
+        p = rand(MP)
+        q = rand(MP)
+
+        X_cpu = similar(p)
+        log!(MP, X_cpu, p, q)
+
+        p_cu = CuArray(p)
+        q_cu = CuArray(q)
+        X_cu = similar(p_cu)
+        log!(MP, X_cu, p_cu, q_cu)
+        X_cu_h = Array(X_cu)
+
+        @test isapprox(X_cu_h, X_cpu; atol = 2.0e-14, rtol = 2.0e-14)
+    end
+
+    @testset "log! Float32" begin
+        Random.seed!(93)
+
+        M = Grassmann(8, 4)
+        MP = PowerManifold(M, 32)
+
+        p = Float32.(rand(MP))
+        q = Float32.(rand(MP))
+
+        X_cpu = similar(p)
+        log!(MP, X_cpu, p, q)
+
+        p_cu = CuArray(p)
+        q_cu = CuArray(q)
+        X_cu = similar(p_cu)
+        log!(MP, X_cu, p_cu, q_cu)
+        X_cu_h = Array(X_cu)
+
+        @test isapprox(X_cu_h, X_cpu; atol = 2.0f-5, rtol = 2.0f-5)
+    end
+
+    @testset "log! fallback large matrices Float32" begin
+        Random.seed!(931)
+
+        # Exceeds 32×32 gesvdj! limit, exercises gesvda! fallback
+        M = Grassmann(64, 32)
+        MP = PowerManifold(M, 4)
+
+        p = Float32.(rand(MP))
+        q = Float32.(rand(MP))
+
+        X_cpu = similar(p)
+        log!(MP, X_cpu, p, q)
+
+        p_cu = CuArray(p)
+        q_cu = CuArray(q)
+        X_cu = similar(p_cu)
+        log!(MP, X_cu, p_cu, q_cu)
+        X_cu_h = Array(X_cu)
+
+        @test isapprox(X_cu_h, X_cpu; atol = 2.0f-4, rtol = 2.0f-4)
+    end
+
+    @testset "parallel_transport_direction! Float64" begin
+        Random.seed!(94)
+
+        M = Grassmann(8, 4)
+        MP = PowerManifold(M, 32)
+
+        p = rand(MP)
+        X = rand(MP; vector_at = p)
+        Y = 0.25 * rand(MP; vector_at = p)
+
+        Z_cpu = similar(X)
+        parallel_transport_direction!(MP, Z_cpu, p, X, Y)
+
+        p_cu = CuArray(p)
+        X_cu = CuArray(X)
+        Y_cu = CuArray(Y)
+        Z_cu = similar(X_cu)
+        parallel_transport_direction!(MP, Z_cu, p_cu, X_cu, Y_cu)
+        Z_cu_h = Array(Z_cu)
+
+        @test isapprox(Z_cu_h, Z_cpu; atol = 2.0e-14, rtol = 2.0e-14)
+    end
+
+    @testset "parallel_transport_direction! Float32" begin
+        Random.seed!(95)
+
+        M = Grassmann(8, 4)
+        MP = PowerManifold(M, 32)
+
+        p = Float32.(rand(MP))
+        X = Float32.(rand(MP; vector_at = p))
+        Y = Float32(0.25) .* Float32.(rand(MP; vector_at = p))
+
+        Z_cpu = similar(X)
+        parallel_transport_direction!(MP, Z_cpu, p, X, Y)
+
+        p_cu = CuArray(p)
+        X_cu = CuArray(X)
+        Y_cu = CuArray(Y)
+        Z_cu = similar(X_cu)
+        parallel_transport_direction!(MP, Z_cu, p_cu, X_cu, Y_cu)
+        Z_cu_h = Array(Z_cu)
+
+        @test isapprox(Z_cu_h, Z_cpu; atol = 2.0f-5, rtol = 2.0f-5)
+    end
+
+    @testset "parallel_transport_direction! fallback large matrices Float32" begin
+        Random.seed!(951)
+
+        # Exceeds 32×32 gesvdj! limit, exercises gesvda! fallback
+        M = Grassmann(64, 32)
+        MP = PowerManifold(M, 4)
+
+        p = Float32.(rand(MP))
+        X = Float32.(rand(MP; vector_at = p))
+        Y = Float32(0.25) .* Float32.(rand(MP; vector_at = p))
+
+        Z_cpu = similar(X)
+        parallel_transport_direction!(MP, Z_cpu, p, X, Y)
+
+        p_cu = CuArray(p)
+        X_cu = CuArray(X)
+        Y_cu = CuArray(Y)
+        Z_cu = similar(X_cu)
+        parallel_transport_direction!(MP, Z_cu, p_cu, X_cu, Y_cu)
+        Z_cu_h = Array(Z_cu)
+
+        @test isapprox(Z_cu_h, Z_cpu; atol = 2.0f-4, rtol = 2.0f-4)
+    end
+
+    @testset "distance Float64" begin
+        Random.seed!(96)
+
+        M = Grassmann(8, 4)
+        MP = PowerManifold(M, 32)
+
+        p = rand(MP)
+        q = rand(MP)
+
+        d_cpu = distance(MP, p, q)
+
+        p_cu = CuArray(p)
+        q_cu = CuArray(q)
+        d_gpu = distance(MP, p_cu, q_cu)
+
+        @test isapprox(d_gpu, d_cpu; atol = 2.0e-14, rtol = 2.0e-14)
+    end
+
+    @testset "distance Float32" begin
+        Random.seed!(97)
+
+        M = Grassmann(8, 4)
+        MP = PowerManifold(M, 32)
+
+        p = Float32.(rand(MP))
+        q = Float32.(rand(MP))
+
+        d_cpu = distance(MP, p, q)
+
+        p_cu = CuArray(p)
+        q_cu = CuArray(q)
+        d_gpu = distance(MP, p_cu, q_cu)
+
+        @test isapprox(d_gpu, d_cpu; atol = 2.0f-5, rtol = 2.0f-5)
+    end
+
+    @testset "distance fallback large matrices Float32" begin
+        Random.seed!(971)
+
+        # Exceeds 32×32 gesvdj! limit, exercises gesvda! fallback
+        M = Grassmann(64, 32)
+        MP = PowerManifold(M, 4)
+
+        p = Float32.(rand(MP))
+        q = Float32.(rand(MP))
+
+        d_cpu = distance(MP, p, q)
+
+        p_cu = CuArray(p)
+        q_cu = CuArray(q)
+        d_gpu = distance(MP, p_cu, q_cu)
+
+        @test isapprox(d_gpu, d_cpu; atol = 2.0f-4, rtol = 2.0f-4)
+    end
 end

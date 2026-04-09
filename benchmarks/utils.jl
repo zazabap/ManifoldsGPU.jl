@@ -391,6 +391,38 @@ function _benchmark_retraction(
     )
 end
 
+function _benchmark_distance(; MP, p_cpu, q_cpu, p_gpu, q_gpu, samples::Int, manifold_label::String)
+    cpu_ms, cpu_all, gpu_ms, gpu_all = _benchmark_cpu_gpu(
+        () -> distance(MP, p_cpu, q_cpu),
+        () -> CUDA.@sync distance(MP, p_gpu, q_gpu);
+        samples = samples,
+    )
+
+    cpu_res = distance(MP, p_cpu, q_cpu)
+    gpu_res = CUDA.@sync distance(MP, p_gpu, q_gpu)
+    relerr = _relative_error(cpu_res, gpu_res)
+
+    _print_results(
+        name = "distance",
+        manifold_label = manifold_label,
+        samples = samples,
+        cpu_all = cpu_all,
+        gpu_all = gpu_all,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+        relerr_label = "|dcpu - dgpu|/|dcpu|",
+    )
+    return _benchmark_result(
+        manifold_label = manifold_label,
+        operation = "distance",
+        samples = samples,
+        cpu_ms = cpu_ms,
+        gpu_ms = gpu_ms,
+        relerr = relerr,
+    )
+end
+
 # --- Generic manifold benchmark ---
 
 function benchmark_manifold(

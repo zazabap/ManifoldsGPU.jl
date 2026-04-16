@@ -319,6 +319,7 @@ function _benchmark_retraction(
         t::Float32,
         samples::Int,
         manifold_label::String,
+        error_fn = nothing,
     )
     q_cpu = similar(p_cpu)
     q_gpu = similar(p_gpu)
@@ -333,7 +334,8 @@ function _benchmark_retraction(
 
         cpu_res = exp(MP, p_cpu, X_cpu)
         gpu_res = Array(CUDA.@sync exp(MP, p_gpu, X_gpu))
-        relerr = _relative_error(cpu_res, gpu_res)
+        relerr = isnothing(error_fn) ? _relative_error(cpu_res, gpu_res) : error_fn(MP, cpu_res, gpu_res)
+        relerr_label = isnothing(error_fn) ? "||Ycpu - Ygpu||/||Ycpu||" : "distance(Ycpu, Ygpu)"
 
         _print_results(
             name = method_name,
@@ -344,7 +346,7 @@ function _benchmark_retraction(
             cpu_ms = cpu_ms,
             gpu_ms = gpu_ms,
             relerr = relerr,
-            relerr_label = "||Ycpu - Ygpu||/||Ycpu||",
+            relerr_label = relerr_label,
             extra_lines = ["Retraction method: $method_name"],
         )
 
@@ -366,7 +368,8 @@ function _benchmark_retraction(
 
     cpu_res = ManifoldsBase.retract_fused!(MP, q_cpu, p_cpu, X_cpu, t, method)
     gpu_res = Array(CUDA.@sync ManifoldsBase.retract_fused!(MP, q_gpu, p_gpu, X_gpu, t, method))
-    relerr = _relative_error(cpu_res, gpu_res)
+    relerr = isnothing(error_fn) ? _relative_error(cpu_res, gpu_res) : error_fn(MP, cpu_res, gpu_res)
+    relerr_label = isnothing(error_fn) ? "||Qcpu - Qgpu||/||Qcpu||" : "distance(Qcpu, Qgpu)"
 
     _print_results(
         name = method_name,
@@ -377,7 +380,7 @@ function _benchmark_retraction(
         cpu_ms = cpu_ms,
         gpu_ms = gpu_ms,
         relerr = relerr,
-        relerr_label = "||Qcpu - Qgpu||/||Qcpu||",
+        relerr_label = relerr_label,
         extra_lines = ["Retraction scalar t: $t", "Retraction method: $method_name"],
     )
 

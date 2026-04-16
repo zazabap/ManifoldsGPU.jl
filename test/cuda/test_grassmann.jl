@@ -259,6 +259,9 @@
         @test isapprox(q_cu_h, q; atol = 2.0f-5, rtol = 2.0f-5)
     end
 
+    # GPU uses Cholesky-QR, CPU uses Householder QR — same subspace, different matrix.
+    # Compare via distance (same pattern as exp! tests above).
+
     @testset "retract_qr_fused Float64" begin
         Random.seed!(89)
 

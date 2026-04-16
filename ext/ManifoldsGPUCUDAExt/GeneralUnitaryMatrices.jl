@@ -60,7 +60,8 @@ function ManifoldsBase.retract_qr_fused!(
         X::CuArray{T, 3},
         t::Number,
     ) where {T <: Number}
-    q .= p .+ CUDA.CUBLAS.gemm_strided_batched('N', 'N', p, T(t) .* X)
+    q .= p
+    CUDA.CUBLAS.gemm_strided_batched!('N', 'N', T(t), p, X, one(T), q)
     return _cholesky_qr_gpu!(q)
 end
 

@@ -279,7 +279,7 @@
         q_cu_h = Array(q_cu)
 
         @test is_point(MP, q_cu_h)
-        @test isapprox(q_cu_h, q; atol = 2.0e-14, rtol = 2.0e-14)
+        @test distance(MP, q_cu_h, q) < 2.0e-14
     end
 
     @testset "retract_qr_fused Float32" begin
@@ -302,7 +302,7 @@
         q_cu_h = Array(q_cu)
 
         @test is_point(MP, q_cu_h)
-        @test isapprox(q_cu_h, q; atol = 2.0f-5, rtol = 2.0f-5)
+        @test distance(MP, q_cu_h, q) < 2.0f-5
     end
 
     @testset "inverse_retract_polar Float64" begin

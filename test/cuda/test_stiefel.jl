@@ -221,4 +221,54 @@
         @test isapprox(i_gpu, i_cpu; atol = 1.0f-4, rtol = 1.0f-4)
         @test isapprox(n_gpu, n_cpu; atol = 1.0f-4, rtol = 1.0f-4)
     end
+
+    @testset "project! tangent Float64" begin
+        Random.seed!(78)
+
+        M = Stiefel(8, 4)
+        MP = PowerManifold(M, 32)
+
+        p = rand(MP)
+        X = randn(size(p)...)
+
+        Y_cpu = similar(X)
+        for i in 1:size(p, 3)
+            ManifoldsBase.project!(
+                M, view(Y_cpu, :, :, i), view(p, :, :, i), view(X, :, :, i)
+            )
+        end
+
+        p_cu = CuArray(p)
+        X_cu = CuArray(X)
+        Y_cu = similar(X_cu)
+        ManifoldsBase.project!(MP, Y_cu, p_cu, X_cu)
+        Y_cu_h = Array(Y_cu)
+
+        @test isapprox(Y_cu_h, Y_cpu; atol = 2.0e-14, rtol = 2.0e-14)
+    end
+
+    @testset "project! tangent Float32" begin
+        Random.seed!(79)
+
+        M = Stiefel(8, 4)
+        MP = PowerManifold(M, 32)
+
+        p = Float32.(rand(MP))
+        X = Float32.(randn(size(p)...))
+
+        Y_cpu = similar(X)
+        for i in 1:size(p, 3)
+            ManifoldsBase.project!(
+                M, view(Y_cpu, :, :, i), view(p, :, :, i), view(X, :, :, i)
+            )
+        end
+
+        p_cu = CuArray(p)
+        X_cu = CuArray(X)
+        Y_cu = similar(X_cu)
+        ManifoldsBase.project!(MP, Y_cu, p_cu, X_cu)
+        Y_cu_h = Array(Y_cu)
+
+        @test isapprox(Y_cu_h, Y_cpu; atol = 2.0f-5, rtol = 2.0f-5)
+    end
 end

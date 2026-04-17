@@ -41,7 +41,7 @@ function _print_results(;
         cpu_ms::Float64,
         gpu_ms::Float64,
         relerr,
-        relerr_label::String,
+        err_label::String,
         extra_lines::Vector{String} = String[],
     )
     speedup = cpu_ms / gpu_ms
@@ -56,7 +56,7 @@ function _print_results(;
     println("Median CPU [ms]: ", round(cpu_ms; digits = 2))
     println("Median GPU [ms]: ", round(gpu_ms; digits = 2))
     println("Speedup (CPU/GPU): ", round(speedup; digits = 2), "x")
-    return println("Relative error $relerr_label: ", relerr)
+    return println("Error $err_label: ", relerr)
 end
 
 function _benchmark_result(; manifold_label::String, operation::String, samples::Int, cpu_ms::Float64, gpu_ms::Float64, relerr)
@@ -148,7 +148,17 @@ end
 
 # --- Generic operation benchmarks ---
 
-function _benchmark_exp(; MP, p_cpu, X_cpu, p_gpu, X_gpu, samples::Int, manifold_label::String, error_fn = nothing)
+function _benchmark_exp(;
+        MP,
+        p_cpu,
+        X_cpu,
+        p_gpu,
+        X_gpu,
+        samples::Int,
+        manifold_label::String,
+        error_fn = nothing,
+        err_label::String = isnothing(error_fn) ? "||Ycpu - Ygpu||/||Ycpu||" : "distance(Ycpu, Ygpu)",
+    )
     cpu_ms, cpu_all, gpu_ms, gpu_all = _benchmark_cpu_gpu(
         () -> exp(MP, p_cpu, X_cpu),
         () -> CUDA.@sync exp(MP, p_gpu, X_gpu);
@@ -158,7 +168,6 @@ function _benchmark_exp(; MP, p_cpu, X_cpu, p_gpu, X_gpu, samples::Int, manifold
     cpu_res = exp(MP, p_cpu, X_cpu)
     gpu_res = Array(CUDA.@sync exp(MP, p_gpu, X_gpu))
     relerr = isnothing(error_fn) ? _relative_error(cpu_res, gpu_res) : error_fn(MP, cpu_res, gpu_res)
-    relerr_label = isnothing(error_fn) ? "||Ycpu - Ygpu||/||Ycpu||" : "distance(Ycpu, Ygpu)"
 
     _print_results(
         name = "exp",
@@ -169,7 +178,7 @@ function _benchmark_exp(; MP, p_cpu, X_cpu, p_gpu, X_gpu, samples::Int, manifold
         cpu_ms = cpu_ms,
         gpu_ms = gpu_ms,
         relerr = relerr,
-        relerr_label = relerr_label,
+        err_label = err_label,
     )
     return _benchmark_result(
         manifold_label = manifold_label,
@@ -201,7 +210,7 @@ function _benchmark_log!(; MP, p_cpu, q_cpu, p_gpu, q_gpu, X_cpu, X_gpu, samples
         cpu_ms = cpu_ms,
         gpu_ms = gpu_ms,
         relerr = relerr,
-        relerr_label = "||Xcpu - Xgpu||/||Xcpu||",
+        err_label = "||Xcpu - Xgpu||/||Xcpu||",
     )
     return _benchmark_result(
         manifold_label = manifold_label,
@@ -233,7 +242,7 @@ function _benchmark_inner(; MP, p_cpu, X_cpu, Y_cpu, p_gpu, X_gpu, Y_gpu, sample
         cpu_ms = cpu_ms,
         gpu_ms = gpu_ms,
         relerr = relerr,
-        relerr_label = "|icpu - igpu|/|icpu|",
+        err_label = "|icpu - igpu|/|icpu|",
     )
     return _benchmark_result(
         manifold_label = manifold_label,
@@ -265,7 +274,7 @@ function _benchmark_norm(; MP, p_cpu, X_cpu, p_gpu, X_gpu, samples::Int, manifol
         cpu_ms = cpu_ms,
         gpu_ms = gpu_ms,
         relerr = relerr,
-        relerr_label = "|ncpu - ngpu|/|ncpu|",
+        err_label = "|ncpu - ngpu|/|ncpu|",
     )
     return _benchmark_result(
         manifold_label = manifold_label,
@@ -297,7 +306,7 @@ function _benchmark_project!(; MP, p_cpu, Z_cpu, p_gpu, Z_gpu, X_cpu, X_gpu, sam
         cpu_ms = cpu_ms,
         gpu_ms = gpu_ms,
         relerr = relerr,
-        relerr_label = "||Xcpu - Xgpu||/||Xcpu||",
+        err_label = "||Xcpu - Xgpu||/||Xcpu||",
     )
     return _benchmark_result(
         manifold_label = manifold_label,
@@ -320,6 +329,7 @@ function _benchmark_retraction(
         samples::Int,
         manifold_label::String,
         error_fn = nothing,
+        err_label::String = isnothing(error_fn) ? "||Qcpu - Qgpu||/||Qcpu||" : "distance(Qcpu, Qgpu)",
     )
     q_cpu = similar(p_cpu)
     q_gpu = similar(p_gpu)
@@ -335,7 +345,6 @@ function _benchmark_retraction(
         cpu_res = exp(MP, p_cpu, X_cpu)
         gpu_res = Array(CUDA.@sync exp(MP, p_gpu, X_gpu))
         relerr = isnothing(error_fn) ? _relative_error(cpu_res, gpu_res) : error_fn(MP, cpu_res, gpu_res)
-        relerr_label = isnothing(error_fn) ? "||Ycpu - Ygpu||/||Ycpu||" : "distance(Ycpu, Ygpu)"
 
         _print_results(
             name = method_name,
@@ -346,7 +355,7 @@ function _benchmark_retraction(
             cpu_ms = cpu_ms,
             gpu_ms = gpu_ms,
             relerr = relerr,
-            relerr_label = relerr_label,
+            err_label = err_label,
             extra_lines = ["Retraction method: $method_name"],
         )
 
@@ -369,7 +378,6 @@ function _benchmark_retraction(
     cpu_res = ManifoldsBase.retract_fused!(MP, q_cpu, p_cpu, X_cpu, t, method)
     gpu_res = Array(CUDA.@sync ManifoldsBase.retract_fused!(MP, q_gpu, p_gpu, X_gpu, t, method))
     relerr = isnothing(error_fn) ? _relative_error(cpu_res, gpu_res) : error_fn(MP, cpu_res, gpu_res)
-    relerr_label = isnothing(error_fn) ? "||Qcpu - Qgpu||/||Qcpu||" : "distance(Qcpu, Qgpu)"
 
     _print_results(
         name = method_name,
@@ -380,7 +388,7 @@ function _benchmark_retraction(
         cpu_ms = cpu_ms,
         gpu_ms = gpu_ms,
         relerr = relerr,
-        relerr_label = relerr_label,
+        err_label = err_label,
         extra_lines = ["Retraction scalar t: $t", "Retraction method: $method_name"],
     )
 
@@ -414,7 +422,7 @@ function _benchmark_distance(; MP, p_cpu, q_cpu, p_gpu, q_gpu, samples::Int, man
         cpu_ms = cpu_ms,
         gpu_ms = gpu_ms,
         relerr = relerr,
-        relerr_label = "|dcpu - dgpu|/|dcpu|",
+        err_label = "|dcpu - dgpu|/|dcpu|",
     )
     return _benchmark_result(
         manifold_label = manifold_label,
